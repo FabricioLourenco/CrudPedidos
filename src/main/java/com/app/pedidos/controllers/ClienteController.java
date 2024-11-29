@@ -9,7 +9,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.View;
 
 import java.util.List;
 import java.util.Optional;
@@ -21,70 +20,63 @@ import java.util.stream.Collectors;
 @RequestMapping("cliente")
 public class ClienteController {
 
-    final private ClienteService clienteService;
+    private final ClienteService clienteService;
 
-    public ClienteController(ClienteService clienteService, View error) {
+    public ClienteController(ClienteService clienteService) {
         this.clienteService = clienteService;
     }
 
     @PostMapping("/salvar")
-    public ResponseEntity<Object> savecliete(@RequestBody @Valid ClienteDto clienteDto, BindingResult result){
-
-        if (result.hasErrors()){
-            List<String> menssagensDeErro = result.getAllErrors()
-                    .stream()
+    public ResponseEntity<Object> salvarCliente(@RequestBody @Valid ClienteDto clienteDto, BindingResult result) {
+        if (result.hasErrors()) {
+            List<String> mensagensDeErro = result.getAllErrors().stream()
                     .map(error -> error.getDefaultMessage())
                     .collect(Collectors.toList());
-
-            return ResponseEntity.badRequest().body(menssagensDeErro);
+            return ResponseEntity.badRequest().body(mensagensDeErro);
         }
+
+        if (clienteService.cpfExiste(clienteDto.getCpf())) {
+            return ResponseEntity.badRequest().body("CPF já cadastrado.");
+        }
+
         var clienteModel = new ClienteModel();
         BeanUtils.copyProperties(clienteDto, clienteModel);
-        return ResponseEntity.ok().body(clienteService.save(clienteModel));
+        return ResponseEntity.ok(clienteService.salvar(clienteModel));
     }
 
     @GetMapping("/listar")
-    public ResponseEntity<List<ClienteModel>> getAllCliente(){
-        return ResponseEntity.ok().body(
-                clienteService.findAll());
+    public ResponseEntity<List<ClienteModel>> listarClientes() {
+        return ResponseEntity.ok(clienteService.listarTodos());
     }
 
-    @PostMapping("/editar")
-    public ResponseEntity<Object> editarCliente(
-            @RequestBody @Valid ClienteModel clienteModel) {
+    @GetMapping("/{id}")
+    public ResponseEntity<Object> buscarClientePorId(@PathVariable UUID id) {
+        Optional<ClienteModel> clienteOptional = clienteService.buscarPorId(id);
+        if (clienteOptional.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Cliente não encontrado.");
+        }
+        return ResponseEntity.ok(clienteOptional.get());
+    }
 
-        Optional<ClienteModel> clienteModelOptional = clienteService.findById(clienteModel.getId());
-
-        if (clienteModelOptional.isEmpty()) {
+    @PutMapping("/editar")
+    public ResponseEntity<Object> editarCliente(@RequestBody @Valid ClienteDto clienteDto) {
+        Optional<ClienteModel> clienteOptional = clienteService.buscarPorId(clienteDto.getId());
+        if (clienteOptional.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Cliente não encontrado.");
         }
 
-        ClienteModel clienteExistente = clienteModelOptional.get();
-
-        BeanUtils.copyProperties(clienteModel, clienteExistente, "id", "pedidos");
-
-        ClienteModel clienteAtualizado = clienteService.save(clienteExistente);
-
-        return ResponseEntity.ok(clienteAtualizado);
+        var clienteExistente = clienteOptional.get();
+        BeanUtils.copyProperties(clienteDto, clienteExistente, "id");
+        return ResponseEntity.ok(clienteService.salvar(clienteExistente));
     }
 
-    @PostMapping("/delete/{id}")
-    public ResponseEntity<Object> apagarCliente(
-            @PathVariable(value = "id") UUID id
-    ){
-        Optional<ClienteModel> clienteModelOptional =
-                clienteService.findById(id);
-        if(clienteModelOptional.isEmpty()){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    "Cliente não encontrado"
-            );
+    @DeleteMapping("/remover/{id}")
+    public ResponseEntity<Object> removerCliente(@PathVariable UUID id) {
+        if (!clienteService.podeRemoverCliente(id)) {
+            return ResponseEntity.badRequest().body("Cliente possui pedidos vinculados e não pode ser removido.");
         }
 
-        clienteService.delete(id);
-
-        return ResponseEntity.status(HttpStatus.OK).body(
-                "Cliente apagado com sucesso"
-        );
+        clienteService.remover(id);
+        return ResponseEntity.ok("Cliente removido com sucesso.");
     }
-
 }

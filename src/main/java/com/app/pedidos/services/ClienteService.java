@@ -1,10 +1,9 @@
 package com.app.pedidos.services;
 
 import com.app.pedidos.models.ClienteModel;
-import com.app.pedidos.models.PedidoModel;
 import com.app.pedidos.repositories.ClienteRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,34 +12,35 @@ import java.util.UUID;
 @Service
 public class ClienteService {
 
-    final ClienteRepository clienteRepository;
+    private final ClienteRepository clienteRepository;
 
     public ClienteService(ClienteRepository clienteRepository) {
         this.clienteRepository = clienteRepository;
     }
 
     @Transactional
-    public ClienteModel save(ClienteModel clienteModel) {
-
-        for (PedidoModel pedido: clienteModel.getPedidos()) {
-
-            pedido.setClienteModel(clienteModel);
-        }
-
+    public ClienteModel salvar(ClienteModel clienteModel) {
         return clienteRepository.save(clienteModel);
     }
 
-    @Transactional
-    public void delete(UUID id) {
-        clienteRepository.deleteById(id);
-    }
-
-    public List<ClienteModel> findAll() {
+    public List<ClienteModel> listarTodos() {
         return clienteRepository.findAll();
     }
-    public Optional<ClienteModel> findById(UUID id) {
+
+    public Optional<ClienteModel> buscarPorId(UUID id) {
         return clienteRepository.findById(id);
     }
 
+    public boolean cpfExiste(String cpf) {
+        return clienteRepository.existsByCpf(cpf);
+    }
 
+    public boolean podeRemoverCliente(UUID id) {
+        return buscarPorId(id).map(cliente -> cliente.getPedidos().isEmpty()).orElse(false);
+    }
+
+    @Transactional
+    public void remover(UUID id) {
+        clienteRepository.deleteById(id);
+    }
 }
